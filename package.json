@@ -1,0 +1,35 @@
+{
+  "name": "veramo-ai-trust-demo",
+  "version": "1.0.0",
+  "description": "DID-based AI trust and authorization demo using Veramo",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "check:agent": "node --env-file=.env --import tsx src/scripts/check-agent.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@veramo/core": "^7.0.0",
+    "@veramo/credential-jwt": "^7.0.0",
+    "@veramo/credential-w3c": "^7.0.0",
+    "@veramo/data-store": "^7.0.0",
+    "@veramo/did-manager": "^7.0.0",
+    "@veramo/did-provider-ethr": "^7.0.0",
+    "@veramo/did-resolver": "^7.0.0",
+    "@veramo/key-manager": "^7.0.0",
+    "@veramo/kms-local": "^7.0.0",
+    "did-resolver": "4.1.0",
+    "ethers": "6.16.0",
+    "ethr-did-resolver": "11.0.3",
+    "sqlite3": "5.1.7",
+    "typeorm": "0.3.31"
+  }
+}
