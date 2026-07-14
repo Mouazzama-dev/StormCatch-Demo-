@@ -1,14 +1,7 @@
 import { AI_IDENTITY_CREDENTIAL_TYPE } from '../credentials/ai-identity.js'
+import { hasCredentialType } from '../credentials/utils.js'
 import { agent } from '../veramo/agent.js'
 import { run } from './run.js'
-
-const includesCredentialType = (
-  type: string | string[] | undefined,
-  expectedType: string,
-): boolean =>
-  Array.isArray(type)
-    ? type.includes(expectedType)
-    : type === expectedType
 
 await run(async () => {
   const storedCredentials =
@@ -16,8 +9,8 @@ await run(async () => {
 
   const aiIdentityCredentials = storedCredentials.filter(
     ({ verifiableCredential }) =>
-      includesCredentialType(
-        verifiableCredential.type,
+      hasCredentialType(
+        verifiableCredential,
         AI_IDENTITY_CREDENTIAL_TYPE,
       ),
   )
