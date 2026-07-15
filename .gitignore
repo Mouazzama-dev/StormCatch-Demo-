@@ -5,3 +5,6 @@ data/*.sqlite
 data/*.sqlite-*
 *.log
 .DS_Store
+
+# Runtime authorization audit log
+backend/data/*.jsonl
