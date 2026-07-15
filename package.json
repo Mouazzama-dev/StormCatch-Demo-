@@ -34,6 +34,7 @@
     "ethers": "6.16.0",
     "ethr-did-resolver": "11.0.3",
     "express": "5.2.1",
+    "jose": "6.2.3",
     "sqlite3": "5.1.7",
     "typeorm": "0.3.31"
   }
