@@ -49,8 +49,17 @@ interface CreateAuthorizationRequestBody {
 type AuthorizationDecisionResponse =
   StoredAuthorizationResult
 
+interface AuthorizationHistoryResponse {
+  readonly requestId: string
+  readonly eventCount: number
+  readonly events: readonly StoredAuthorizationResult[]
+}
+
 interface ErrorResponse {
-  readonly error: 'INVALID_REQUEST'
+  readonly error:
+    | 'INVALID_REQUEST'
+    | 'REQUEST_NOT_FOUND'
+    | 'LOG_READ_FAILED'
   readonly message: string
 }
 
@@ -261,5 +270,66 @@ export const createAuthorizationRouter =
       },
     )
 
+    router.get(
+  '/requests/:requestId',
+  requireAccessToken('authorization:read'),
+  async (
+    request: Request<
+      {
+        requestId: string
+      },
+      AuthorizationHistoryResponse | ErrorResponse
+    >,
+    response: Response<
+      AuthorizationHistoryResponse | ErrorResponse
+    >,
+  ) => {
+    const requestId =
+      request.params.requestId.trim()
+
+    if (requestId.length === 0) {
+      return response.status(400).json({
+        error: 'INVALID_REQUEST',
+        message: 'requestId is required',
+      })
+    }
+
+    try {
+      const events =
+        await authorizationResultStore.getAllByRequestId(
+          requestId,
+        )
+
+      if (events.length === 0) {
+        return response.status(404).json({
+          error: 'REQUEST_NOT_FOUND',
+          message:
+            'No authorization events were found for this requestId',
+        })
+      }
+
+      response.set('Cache-Control', 'no-store')
+
+      return response.status(200).json({
+        requestId,
+        eventCount: events.length,
+        events,
+      })
+    } catch (error: unknown) {
+      console.error(
+        'Unable to read authorization history:',
+        error instanceof Error
+          ? error.message
+          : error,
+      )
+
+      return response.status(500).json({
+        error: 'LOG_READ_FAILED',
+        message:
+          'Unable to read the authorization history',
+      })
+    }
+  },
+)
     return router
   }
