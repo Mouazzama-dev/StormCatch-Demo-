@@ -1,6 +1,7 @@
 import express, { type Express } from 'express'
 
 import { createAuthRouter } from './routes/auth.js'
+import { createDemoRouter } from './routes/demo.js'
 
 interface HealthResponse {
   readonly status: 'ok'
@@ -30,6 +31,7 @@ export const createApp = (): Express => {
   })
 
   app.use('/api/v1/auth', createAuthRouter())
+  app.use('/api/v1/demo', createDemoRouter())
 
   return app
 }
