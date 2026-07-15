@@ -1,9 +1,20 @@
-import type { VerifiableCredential } from '@veramo/core'
+import type {
+  VerifiableCredential,
+  VerifiablePresentation,
+} from '@veramo/core'
 import {
   Router,
+  type Request,
   type Response,
 } from 'express'
 
+import {
+  authorizationChallengeStore,
+  ChallengeStoreError,
+} from '../../../src/authorization/challenge-store.js'
+import {
+  createRobotAuthorizationPresentation,
+} from '../../../src/authorization/create-presentation.js'
 import {
   authorizationResources,
   type AuthorizationResource,
@@ -32,8 +43,25 @@ interface RobotProfileResponse {
   }
 }
 
+interface CreatePresentationRequestBody {
+  readonly requestId?: unknown
+}
+
+interface RobotPresentationResponse {
+  readonly requestId: string
+  readonly actorDid: string
+  readonly credentialHash: string
+  readonly presentation: VerifiablePresentation
+}
+
 interface ErrorResponse {
-  readonly error: 'ROBOT_PROFILE_UNAVAILABLE'
+  readonly error:
+    | 'INVALID_REQUEST'
+    | 'CHALLENGE_NOT_FOUND'
+    | 'CHALLENGE_ALREADY_CONSUMED'
+    | 'CHALLENGE_EXPIRED'
+    | 'ROBOT_PROFILE_UNAVAILABLE'
+    | 'PRESENTATION_CREATION_FAILED'
   readonly message: string
 }
 
@@ -182,6 +210,106 @@ export const createDemoRouter = (): Router => {
           error: 'ROBOT_PROFILE_UNAVAILABLE',
           message:
             'Unable to load the Robot identity profile',
+        })
+      }
+    },
+  )
+
+  router.post(
+    '/robot/presentations',
+    requireAccessToken('presentation:create'),
+    async (
+      request: Request<
+        Record<string, never>,
+        RobotPresentationResponse | ErrorResponse,
+        CreatePresentationRequestBody
+      >,
+      response: Response<
+        RobotPresentationResponse | ErrorResponse
+      >,
+    ) => {
+      const { requestId } = request.body ?? {}
+
+      if (
+        typeof requestId !== 'string' ||
+        requestId.trim().length === 0
+      ) {
+        return response.status(400).json({
+          error: 'INVALID_REQUEST',
+          message: 'requestId is required',
+        })
+      }
+
+      try {
+        const challenge =
+          authorizationChallengeStore.get(requestId)
+
+        if (challenge.status === 'consumed') {
+          return response.status(409).json({
+            error: 'CHALLENGE_ALREADY_CONSUMED',
+            message:
+              'The authorization challenge has already been consumed',
+          })
+        }
+
+        if (challenge.status === 'expired') {
+          return response.status(410).json({
+            error: 'CHALLENGE_EXPIRED',
+            message:
+              'The authorization challenge has expired',
+          })
+        }
+
+        const {
+          credentialHash,
+          presentation,
+        } =
+          await createRobotAuthorizationPresentation(
+            challenge,
+          )
+
+        const actorDid = presentation.holder
+
+        if (
+          typeof actorDid !== 'string' ||
+          actorDid.length === 0
+        ) {
+          throw new Error(
+            'Created presentation does not contain a holder DID',
+          )
+        }
+
+        response.set('Cache-Control', 'no-store')
+
+        return response.status(200).json({
+          requestId,
+          actorDid,
+          credentialHash,
+          presentation,
+        })
+      } catch (error: unknown) {
+        if (
+          error instanceof ChallengeStoreError &&
+          error.code === 'CHALLENGE_NOT_FOUND'
+        ) {
+          return response.status(404).json({
+            error: 'CHALLENGE_NOT_FOUND',
+            message:
+              'No authorization challenge exists for the supplied requestId',
+          })
+        }
+
+        console.error(
+          'Unable to create Robot presentation:',
+          error instanceof Error
+            ? error.message
+            : error,
+        )
+
+        return response.status(500).json({
+          error: 'PRESENTATION_CREATION_FAILED',
+          message:
+            'Unable to create the Robot presentation',
         })
       }
     },
