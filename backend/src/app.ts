@@ -1,6 +1,9 @@
 import express, { type Express } from 'express'
 
 import { createAuthRouter } from './routes/auth.js'
+import {
+  createAuthorizationRouter,
+} from './routes/authorization.js'
 import { createDemoRouter } from './routes/demo.js'
 
 interface HealthResponse {
@@ -32,6 +35,11 @@ export const createApp = (): Express => {
 
   app.use('/api/v1/auth', createAuthRouter())
   app.use('/api/v1/demo', createDemoRouter())
+
+  app.use(
+    '/api/v1/authorization',
+    createAuthorizationRouter(),
+  )
 
   return app
 }
