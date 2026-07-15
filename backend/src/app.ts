@@ -1,5 +1,7 @@
 import express, { type Express } from 'express'
 
+import { createAuthRouter } from './routes/auth.js'
+
 interface HealthResponse {
   readonly status: 'ok'
   readonly service: 'stormcatch-authorization-api'
@@ -26,6 +28,8 @@ export const createApp = (): Express => {
 
     response.status(200).json(body)
   })
+
+  app.use('/api/v1/auth', createAuthRouter())
 
   return app
 }
