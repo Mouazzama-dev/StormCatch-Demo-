@@ -13,6 +13,8 @@ import {
 
 export interface StoredAuthorizationResult {
   readonly schemaVersion: '1.0'
+  readonly eventId: string
+  readonly eventType: 'AUTHORIZATION_DECISION'
   readonly requestId: string
   readonly status: 'completed'
   readonly decision: 'APPROVE' | 'REJECT'
@@ -52,7 +54,8 @@ export class AuthorizationResultStoreError
     readonly cause?: unknown,
   ) {
     super(message)
-    this.name = 'AuthorizationResultStoreError'
+    this.name =
+      'AuthorizationResultStoreError'
   }
 }
 
@@ -101,7 +104,21 @@ const parseLogEntry = (
     )
   }
 
-  return value as unknown as StoredAuthorizationResult
+  /*
+   * Compatibility for records created before
+   * eventId and eventType were introduced.
+   */
+  const eventId =
+    typeof value.eventId === 'string' &&
+    value.eventId.trim().length > 0
+      ? value.eventId
+      : `legacy-${value.requestId}-${lineNumber}`
+
+  return {
+    ...value,
+    eventId,
+    eventType: 'AUTHORIZATION_DECISION',
+  } as unknown as StoredAuthorizationResult
 }
 
 class AuthorizationResultStore {
@@ -116,57 +133,49 @@ class AuthorizationResultStore {
   async save(
     result: StoredAuthorizationResult,
   ): Promise<void> {
-    const operation = this.writeSequence.then(
-      async () => {
-        try {
-          await mkdir(
-            dirname(this.logPath),
-            {
-              recursive: true,
-            },
-          )
-
-          const existingRecords =
-            await this.readAllFromDisk()
-
-          const alreadySaved =
-            existingRecords.some(
-              ({ requestId }) =>
-                requestId === result.requestId,
+    const operation =
+      this.writeSequence.then(
+        async () => {
+          try {
+            await mkdir(
+              dirname(this.logPath),
+              {
+                recursive: true,
+              },
             )
 
-          if (alreadySaved) {
-            return
+            /*
+             * Every authorization attempt is
+             * appended, including approvals,
+             * rejections and replay attempts.
+             */
+            await appendFile(
+              this.logPath,
+              `${JSON.stringify(result)}\n`,
+              {
+                encoding: 'utf8',
+                flag: 'a',
+              },
+            )
+          } catch (error: unknown) {
+            if (
+              error instanceof
+              AuthorizationResultStoreError
+            ) {
+              throw error
+            }
+
+            throw new AuthorizationResultStoreError(
+              'LOG_WRITE_FAILED',
+              'Unable to write the authorization log',
+              error,
+            )
           }
+        },
+      )
 
-          await appendFile(
-            this.logPath,
-            `${JSON.stringify(result)}\n`,
-            {
-              encoding: 'utf8',
-              flag: 'a',
-            },
-          )
-        } catch (error: unknown) {
-          if (
-            error instanceof
-            AuthorizationResultStoreError
-          ) {
-            throw error
-          }
-
-          throw new AuthorizationResultStoreError(
-            'LOG_WRITE_FAILED',
-            'Unable to write the authorization log',
-            error,
-          )
-        }
-      },
-    )
-
-    this.writeSequence = operation.catch(
-      () => undefined,
-    )
+    this.writeSequence =
+      operation.catch(() => undefined)
 
     await operation
   }
@@ -181,19 +190,38 @@ class AuthorizationResultStore {
     const records =
       await this.readAllFromDisk()
 
+    /*
+     * Return the latest event for the
+     * supplied requestId.
+     */
     for (
       let index = records.length - 1;
       index >= 0;
       index -= 1
     ) {
       if (
-        records[index]?.requestId === requestId
+        records[index]?.requestId ===
+        requestId
       ) {
         return records[index]
       }
     }
 
     return undefined
+  }
+
+  async getAllByRequestId(
+    requestId: string,
+  ): Promise<StoredAuthorizationResult[]> {
+    await this.writeSequence
+
+    const records =
+      await this.readAllFromDisk()
+
+    return records.filter(
+      (record) =>
+        record.requestId === requestId,
+    )
   }
 
   private async readAllFromDisk(): Promise<
@@ -226,7 +254,10 @@ class AuthorizationResultStore {
       .map((line) => line.trim())
       .filter((line) => line.length > 0)
       .map((line, index) =>
-        parseLogEntry(line, index + 1),
+        parseLogEntry(
+          line,
+          index + 1,
+        ),
       )
   }
 }

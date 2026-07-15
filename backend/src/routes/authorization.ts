@@ -22,6 +22,12 @@ import {
 import {
   requireAccessToken,
 } from '../middleware/authenticate.js'
+import {
+  authorizationResultStore,
+  type StoredAuthorizationResult,
+} from '../services/authorization-result-store.js'
+
+import { randomUUID } from 'node:crypto'
 
 interface AuthorizationChallengeResponse {
   readonly requestId: string
@@ -40,31 +46,8 @@ interface CreateAuthorizationRequestBody {
   readonly presentation?: unknown
 }
 
-interface AuthorizationDecisionResponse {
-  readonly requestId: string
-  readonly status: 'completed'
-  readonly decision: 'APPROVE' | 'REJECT'
-  readonly reason: string
-  readonly details?: string
-  readonly actorDid: string
-  readonly resource: AuthorizationResource
-  readonly action: AuthorizationAction
-  readonly verification: {
-    readonly tokenVerified: true
-    readonly presentationVerified: boolean
-    readonly credentialVerified: boolean
-    readonly challengeConsumed: boolean
-  }
-  readonly policy: {
-    readonly id: string
-    readonly permitted: boolean
-  } | null
-  readonly credential: {
-    readonly type: string
-    readonly issuerDid: string
-    readonly subjectDid: string
-  } | null
-}
+type AuthorizationDecisionResponse =
+  StoredAuthorizationResult
 
 interface ErrorResponse {
   readonly error: 'INVALID_REQUEST'
@@ -97,7 +80,10 @@ const isPresentation = (
     return false
   }
 
-  const holder = Reflect.get(value, 'holder')
+  const holder = Reflect.get(
+    value,
+    'holder',
+  )
 
   return (
     typeof holder === 'string' &&
@@ -105,127 +91,175 @@ const isPresentation = (
   )
 }
 
-export const createAuthorizationRouter = (): Router => {
-  const router = Router()
+export const createAuthorizationRouter =
+  (): Router => {
+    const router = Router()
 
-  router.post(
-    '/challenges',
-    requireAccessToken('challenge:create'),
-    (
-      _request,
-      response: Response<AuthorizationChallengeResponse>,
-    ) => {
-      const challenge =
-        issueAuthorizationChallenge()
+    router.post(
+      '/challenges',
+      requireAccessToken('challenge:create'),
+      (
+        _request,
+        response: Response<AuthorizationChallengeResponse>,
+      ) => {
+        const challenge =
+          issueAuthorizationChallenge()
 
-      response.set('Cache-Control', 'no-store')
+        response.set(
+          'Cache-Control',
+          'no-store',
+        )
 
-      return response.status(201).json({
-        requestId: challenge.requestId,
-        challenge: challenge.challenge,
-        domain: challenge.domain,
-        issuedAt: new Date(
-          challenge.issuedAt,
-        ).toISOString(),
-        expiresAt: new Date(
-          challenge.expiresAt,
-        ).toISOString(),
-        status: challenge.status,
-      })
-    },
-  )
-
-  router.post(
-    '/requests',
-    requireAccessToken('authorization:submit'),
-    async (
-      request: Request<
-        Record<string, never>,
-        AuthorizationDecisionResponse | ErrorResponse,
-        CreateAuthorizationRequestBody
-      >,
-      response: Response<
-        AuthorizationDecisionResponse | ErrorResponse
-      >,
-    ) => {
-      const {
-        requestId,
-        actorDid,
-        resource,
-        action,
-        presentation,
-      } = request.body ?? {}
-
-      if (
-        typeof requestId !== 'string' ||
-        requestId.trim().length === 0 ||
-        typeof actorDid !== 'string' ||
-        actorDid.trim().length === 0 ||
-        !isAuthorizationResource(resource) ||
-        !isAuthorizationAction(action) ||
-        !isPresentation(presentation)
-      ) {
-        return response.status(400).json({
-          error: 'INVALID_REQUEST',
-          message:
-            'requestId, actorDid, resource, action and presentation are required',
+        return response.status(201).json({
+          requestId: challenge.requestId,
+          challenge: challenge.challenge,
+          domain: challenge.domain,
+          issuedAt: new Date(
+            challenge.issuedAt,
+          ).toISOString(),
+          expiresAt: new Date(
+            challenge.expiresAt,
+          ).toISOString(),
+          status: challenge.status,
         })
-      }
+      },
+    )
 
-      const result = await authorizeRequest({
-        request: {
+    router.post(
+      '/requests',
+      requireAccessToken(
+        'authorization:submit',
+      ),
+      async (
+        request: Request<
+          Record<string, never>,
+          | AuthorizationDecisionResponse
+          | ErrorResponse,
+          CreateAuthorizationRequestBody
+        >,
+        response: Response<
+          | AuthorizationDecisionResponse
+          | ErrorResponse
+        >,
+      ) => {
+        const {
           requestId,
           actorDid,
           resource,
           action,
           presentation,
-        },
-      })
+        } = request.body ?? {}
 
-      const details =
-        result.decision.decision === 'REJECT'
-          ? result.decision.details
-          : undefined
+        if (
+          typeof requestId !== 'string' ||
+          requestId.trim().length === 0 ||
+          typeof actorDid !== 'string' ||
+          actorDid.trim().length === 0 ||
+          !isAuthorizationResource(
+            resource,
+          ) ||
+          !isAuthorizationAction(action) ||
+          !isPresentation(presentation)
+        ) {
+          return response.status(400).json({
+            error: 'INVALID_REQUEST',
+            message:
+              'requestId, actorDid, resource, action and presentation are required',
+          })
+        }
 
-      response.set('Cache-Control', 'no-store')
+        const result =
+          await authorizeRequest({
+            request: {
+              requestId,
+              actorDid,
+              resource,
+              action,
+              presentation,
+            },
+          })
 
-      return response.status(200).json({
-        requestId: result.decision.requestId,
-        status: 'completed',
-        decision: result.decision.decision,
-        reason: result.decision.reason,
-        ...(details ? { details } : {}),
-        actorDid: result.decision.actorDid,
-        resource: result.decision.resource,
-        action: result.decision.action,
-        verification: {
-          tokenVerified: true,
-          presentationVerified:
-            result.verification.presentationVerified,
-          credentialVerified:
-            result.verification.credentialVerified,
-          challengeConsumed:
-            result.verification.presentationVerified,
-        },
-        policy: result.policy
-          ? {
-              id: result.policy.policyId,
-              permitted: result.policy.permitted,
-            }
-          : null,
-        credential: result.credentialEvidence
-          ? {
-              type:
-                result.credentialEvidence.type,
-              issuerDid:
-                result.credentialEvidence.issuerDid,
-              subjectDid:
-                result.credentialEvidence.subjectDid,
-            }
-          : null,
-      })
-    },
-  )
+        const details =
+          result.decision.decision ===
+          'REJECT'
+            ? result.decision.details
+            : undefined
 
-  return router
-}
+        const storedResult: StoredAuthorizationResult =
+          {
+            schemaVersion: '1.0',
+            eventId: randomUUID(),
+            eventType: 'AUTHORIZATION_DECISION',
+            requestId:
+              result.decision.requestId,
+            status: 'completed',
+            decision:
+              result.decision.decision,
+            reason:
+              result.decision.reason,
+            ...(details
+              ? { details }
+              : {}),
+            actorDid:
+              result.decision.actorDid,
+            resource:
+              result.decision.resource,
+            action:
+              result.decision.action,
+            verification: {
+              tokenVerified: true,
+              presentationVerified:
+                result.verification
+                  .presentationVerified,
+              credentialVerified:
+                result.verification
+                  .credentialVerified,
+              challengeConsumed:
+                result.verification
+                  .presentationVerified,
+            },
+            policy: result.policy
+              ? {
+                  id: result.policy.policyId,
+                  permitted:
+                    result.policy.permitted,
+                }
+              : null,
+            credential:
+              result.credentialEvidence
+                ? {
+                    type:
+                      result
+                        .credentialEvidence
+                        .type,
+                    issuerDid:
+                      result
+                        .credentialEvidence
+                        .issuerDid,
+                    subjectDid:
+                      result
+                        .credentialEvidence
+                        .subjectDid,
+                  }
+                : null,
+            createdAt:
+              new Date().toISOString(),
+          }
+
+        await authorizationResultStore.save(
+          storedResult,
+        )
+
+        response.set(
+          'Cache-Control',
+          'no-store',
+        )
+
+        return response
+          .status(200)
+          .json(storedResult)
+      },
+    )
+
+    return router
+  }
