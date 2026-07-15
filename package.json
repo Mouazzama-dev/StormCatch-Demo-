@@ -5,7 +5,8 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "check:agent": "node --env-file=.env --import tsx src/scripts/check-agent.ts",
-    "demo:milestone-2": "node --env-file=.env --import tsx src/scripts/demo-milestone-2.ts"
+    "demo:milestone-2": "node --env-file=.env --import tsx src/scripts/demo-milestone-2.ts",
+    "backend": "node --env-file=.env --import tsx backend/src/server.ts"
   },
   "keywords": [],
   "author": "",
