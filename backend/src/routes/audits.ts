@@ -18,6 +18,10 @@ import {
   authorizationResultStore,
   type StoredAuthorizationResult,
 } from '../services/authorization-result-store.js'
+import {
+  publishAuditProofsToIpfs,
+  type PublishIpfsAuditProofsResult,
+} from '../services/publish-ipfs-audit-proofs.js'
 
 interface AuditDetailsResponse {
   readonly requestId: string
@@ -54,6 +58,7 @@ interface AuditErrorResponse {
     | 'INVALID_REQUEST'
     | 'AUDIT_NOT_FOUND'
     | 'AUDIT_READ_FAILED'
+    | 'AUDIT_PUBLISH_FAILED'
   readonly message: string
 }
 
@@ -271,6 +276,76 @@ export const createAuditRouter = (): Router => {
       }
     },
   )
+
+  router.post(
+  '/:requestId/publish',
+  requireAccessToken('audit:publish'),
+  async (
+    request: Request<
+      {
+        requestId: string
+      },
+      PublishIpfsAuditProofsResult | AuditErrorResponse
+    >,
+    response: Response<
+      PublishIpfsAuditProofsResult | AuditErrorResponse
+    >,
+  ) => {
+    const requestId =
+      request.params.requestId.trim()
+
+    if (requestId.length === 0) {
+      return response.status(400).json({
+        error: 'INVALID_REQUEST',
+        message: 'requestId is required',
+      })
+    }
+
+    try {
+      const result =
+        await publishAuditProofsToIpfs(
+          requestId,
+        )
+
+      response.set(
+        'Cache-Control',
+        'no-store',
+      )
+
+      return response.status(200).json(
+        result,
+      )
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown IPFS publishing error'
+
+      if (
+        message.startsWith(
+          'No audit records found',
+        )
+      ) {
+        return response.status(404).json({
+          error: 'AUDIT_NOT_FOUND',
+          message:
+            'No audit records were found for this requestId',
+        })
+      }
+
+      console.error(
+        'Unable to publish audit proofs:',
+        message,
+      )
+
+      return response.status(502).json({
+        error: 'AUDIT_PUBLISH_FAILED',
+        message:
+          'Unable to publish the audit proofs to IPFS',
+      })
+    }
+  },
+)
 
   return router
 }
