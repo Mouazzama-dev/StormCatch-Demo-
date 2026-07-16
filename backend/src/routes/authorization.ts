@@ -27,6 +27,14 @@ import {
   type StoredAuthorizationResult,
 } from '../services/authorization-result-store.js'
 
+import {
+  createAuthorizationAuditDigest,
+} from '../services/audit-hash-service.js'
+import {
+  auditRecordStore,
+  type StoredAuditRecord,
+} from '../services/audit-record-store.js'
+
 import { randomUUID } from 'node:crypto'
 
 interface AuthorizationChallengeResponse {
@@ -258,6 +266,29 @@ export const createAuthorizationRouter =
         await authorizationResultStore.save(
           storedResult,
         )
+
+        const auditDigest =
+  createAuthorizationAuditDigest(
+    storedResult,
+  )
+
+const auditRecord: StoredAuditRecord = {
+  schemaVersion: '1.0',
+  auditId: randomUUID(),
+  eventType:
+    'AUTHORIZATION_AUDIT_DIGEST',
+  eventId: storedResult.eventId,
+  requestId: storedResult.requestId,
+  algorithm: auditDigest.algorithm,
+  hash: auditDigest.hash,
+  canonicalJson:
+    auditDigest.canonicalJson,
+  createdAt: new Date().toISOString(),
+}
+
+await auditRecordStore.save(
+  auditRecord,
+)
 
         response.set(
           'Cache-Control',
