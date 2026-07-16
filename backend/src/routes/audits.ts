@@ -22,6 +22,10 @@ import {
   publishAuditProofsToIpfs,
   type PublishIpfsAuditProofsResult,
 } from '../services/publish-ipfs-audit-proofs.js'
+import {
+  publishAuditProofsToBlockchain,
+  type PublishBlockchainProofsResult,
+} from '../services/publish-blockchain-audit-proofs.js'
 
 interface AuditDetailsResponse {
   readonly requestId: string
@@ -59,6 +63,7 @@ interface AuditErrorResponse {
     | 'AUDIT_NOT_FOUND'
     | 'AUDIT_READ_FAILED'
     | 'AUDIT_PUBLISH_FAILED'
+    | 'AUDIT_ANCHOR_FAILED'
   readonly message: string
 }
 
@@ -342,6 +347,76 @@ export const createAuditRouter = (): Router => {
         error: 'AUDIT_PUBLISH_FAILED',
         message:
           'Unable to publish the audit proofs to IPFS',
+      })
+    }
+  },
+)
+
+router.post(
+  '/:requestId/anchor',
+  requireAccessToken('audit:anchor'),
+  async (
+    request: Request<
+      {
+        requestId: string
+      },
+      PublishBlockchainProofsResult | AuditErrorResponse
+    >,
+    response: Response<
+      PublishBlockchainProofsResult | AuditErrorResponse
+    >,
+  ) => {
+    const requestId =
+      request.params.requestId.trim()
+
+    if (requestId.length === 0) {
+      return response.status(400).json({
+        error: 'INVALID_REQUEST',
+        message: 'requestId is required',
+      })
+    }
+
+    try {
+      const result =
+        await publishAuditProofsToBlockchain(
+          requestId,
+        )
+
+      response.set(
+        'Cache-Control',
+        'no-store',
+      )
+
+      return response.status(200).json(
+        result,
+      )
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Unknown blockchain anchoring error'
+
+      if (
+        message.startsWith(
+          'No audit records found',
+        )
+      ) {
+        return response.status(404).json({
+          error: 'AUDIT_NOT_FOUND',
+          message:
+            'No audit records were found for this requestId',
+        })
+      }
+
+      console.error(
+        'Unable to anchor audit proofs:',
+        message,
+      )
+
+      return response.status(502).json({
+        error: 'AUDIT_ANCHOR_FAILED',
+        message:
+          'Unable to anchor the audit proofs on Sepolia',
       })
     }
   },
