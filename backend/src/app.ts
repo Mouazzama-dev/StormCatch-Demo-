@@ -6,6 +6,8 @@ import {
 } from './routes/authorization.js'
 import { createDemoRouter } from './routes/demo.js'
 
+import { createAuditRouter } from './routes/audits.js'
+
 interface HealthResponse {
   readonly status: 'ok'
   readonly service: 'stormcatch-authorization-api'
@@ -40,6 +42,8 @@ export const createApp = (): Express => {
     '/api/v1/authorization',
     createAuthorizationRouter(),
   )
+
+  app.use('/api/v1/audits', createAuditRouter())
 
   return app
 }
