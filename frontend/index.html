@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  >
+
+  <title>StormCatch Warehouse Authorization Demo</title>
+
+  <link
+    rel="stylesheet"
+    href="./styles.css"
+  >
+</head>
+
+<body>
+  <main class="demo-container">
+    <header class="demo-header">
+      <p class="eyebrow">
+        StormCatch AI Trust Demo
+      </p>
+
+      <h1>
+        Warehouse Robot Authorization Story
+      </h1>
+
+      <p>
+        An autonomous Robot requests permission to
+        perform an action inside warehouse-zone-a.
+        Follow the conversation as the Robot proves
+        its identity, presents its credential and
+        receives a policy decision.
+      </p>
+    </header>
+
+    <section class="controls-panel">
+      <div>
+        <h2>Choose a warehouse scenario</h2>
+
+        <p>
+          Both approved and rejected decisions will
+          be logged, hashed, published to IPFS and
+          anchored on Sepolia.
+        </p>
+      </div>
+
+      <label for="clientSecret">
+        Demo client secret
+      </label>
+
+      <input
+        id="clientSecret"
+        type="password"
+        autocomplete="off"
+        placeholder="Enter DEMO_CLIENT_SECRET"
+      >
+
+      <label for="action">
+        Robot requested action
+      </label>
+
+      <select id="action">
+        <option value="scan-inventory">
+          Scan warehouse inventory
+        </option>
+
+        <option value="move-container">
+          Move a warehouse container
+        </option>
+      </select>
+
+      <div class="scenario-help">
+        <p>
+          <strong>Scan inventory:</strong>
+          expected to be approved.
+        </p>
+
+        <p>
+          <strong>Move container:</strong>
+          expected to be rejected by policy.
+        </p>
+      </div>
+
+      <div class="button-row">
+        <button
+          id="startButton"
+          type="button"
+        >
+          Begin Authorization Story
+        </button>
+
+        <button
+          id="resetButton"
+          type="button"
+          disabled
+        >
+          Reset Story
+        </button>
+      </div>
+
+      <p
+        id="formMessage"
+        class="message"
+        aria-live="polite"
+      ></p>
+    </section>
+
+    <section class="story-panel">
+      <div class="section-heading">
+        <div>
+          <p class="section-label">
+            Live scenario
+          </p>
+
+          <h2>
+            Gateway and Robot conversation
+          </h2>
+        </div>
+
+        <span id="storyStatus">
+          Not started
+        </span>
+      </div>
+
+      <ol
+        id="storyTimeline"
+        class="conversation-list"
+        aria-live="polite"
+      >
+        <li class="story-step gateway-message">
+          <div class="message-speaker">
+            Authorization Gateway
+          </div>
+
+          <strong>
+            Waiting for a Robot request
+          </strong>
+
+          <p>
+            Begin the story to start the warehouse
+            authorization conversation.
+          </p>
+        </li>
+      </ol>
+    </section>
+
+    <section
+      id="identityPanel"
+      class="evidence-panel"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="section-label">
+            Identity evidence
+          </p>
+
+          <h2>
+            Robot and credential details
+          </h2>
+        </div>
+      </div>
+
+      <dl class="evidence-grid">
+        <dt>Robot DID</dt>
+        <dd id="robotDidValue">—</dd>
+
+        <dt>Credential type</dt>
+        <dd id="credentialTypeValue">—</dd>
+
+        <dt>Credential issuer DID</dt>
+        <dd id="credentialIssuerValue">—</dd>
+
+        <dt>Credential subject DID</dt>
+        <dd id="credentialSubjectValue">—</dd>
+
+        <dt>Credential hash</dt>
+        <dd id="credentialHashValue">—</dd>
+      </dl>
+    </section>
+
+    <section
+      id="challengePanel"
+      class="evidence-panel"
+    >
+      <div class="section-heading">
+        <div>
+          <p class="section-label">
+            Replay protection
+          </p>
+
+          <h2>
+            One-time authorization challenge
+          </h2>
+        </div>
+      </div>
+
+      <dl class="evidence-grid">
+        <dt>Request ID</dt>
+        <dd id="requestIdValue">—</dd>
+
+        <dt>Challenge</dt>
+        <dd id="challengeValue">—</dd>
+
+        <dt>Domain</dt>
+        <dd id="challengeDomainValue">—</dd>
+
+        <dt>Expires at</dt>
+        <dd id="challengeExpiresValue">—</dd>
+      </dl>
+    </section>
+
+    <section
+      id="decisionPanel"
+      class="decision-panel"
+      hidden
+    >
+      <p class="section-label">
+        Policy outcome
+      </p>
+
+      <h2>Final authorization decision</h2>
+
+      <p
+        id="decisionValue"
+        class="decision-value"
+      ></p>
+
+      <p id="decisionReason"></p>
+
+      <dl class="decision-details">
+        <dt>Resource</dt>
+        <dd id="resourceValue">
+          warehouse-zone-a
+        </dd>
+
+        <dt>Requested action</dt>
+        <dd id="actionValue">—</dd>
+
+        <dt>Policy ID</dt>
+        <dd id="policyIdValue">—</dd>
+      </dl>
+    </section>
+
+    <section
+      id="proofPanel"
+      class="proof-panel"
+      hidden
+    >
+      <div class="section-heading">
+        <div>
+          <p class="section-label">
+            Tamper-evident record
+          </p>
+
+          <h2>
+            IPFS and Sepolia audit proof
+          </h2>
+        </div>
+      </div>
+
+      <dl class="evidence-grid">
+        <dt>Audit event ID</dt>
+        <dd id="eventIdValue">—</dd>
+
+        <dt>SHA-256 audit hash</dt>
+        <dd id="auditHashValue">—</dd>
+
+        <dt>IPFS CID</dt>
+        <dd id="ipfsCidValue">—</dd>
+
+        <dt>Smart-contract address</dt>
+        <dd id="contractAddressValue">—</dd>
+
+        <dt>Sepolia transaction</dt>
+        <dd id="transactionHashValue">—</dd>
+
+        <dt>Block number</dt>
+        <dd id="blockNumberValue">—</dd>
+
+        <dt>Gas used</dt>
+        <dd id="gasUsedValue">—</dd>
+      </dl>
+
+      <p class="proof-explanation">
+        The complete authorization record is stored
+        on IPFS. Its audit hash and CID are anchored
+        on the Sepolia smart contract, making later
+        modification detectable.
+      </p>
+    </section>
+
+    <section class="technical-panel">
+      <details>
+        <summary>
+          Show complete technical responses
+        </summary>
+
+        <pre id="technicalOutput">No response yet.</pre>
+      </details>
+    </section>
+  </main>
+
+  <script
+    type="module"
+    src="./app.js"
+  ></script>
+</body>
+</html>

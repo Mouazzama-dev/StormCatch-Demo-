@@ -7,6 +7,11 @@ import {
 import { createDemoRouter } from './routes/demo.js'
 
 import { createAuditRouter } from './routes/audits.js'
+import { fileURLToPath } from 'node:url'
+
+const frontendDirectory = fileURLToPath(
+  new URL('../../frontend/', import.meta.url),
+)
 
 interface HealthResponse {
   readonly status: 'ok'
@@ -45,5 +50,9 @@ export const createApp = (): Express => {
 
   app.use('/api/v1/audits', createAuditRouter())
 
+  app.use(
+  '/demo',
+  express.static(frontendDirectory),
+)
   return app
 }
