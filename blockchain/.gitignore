@@ -1,0 +1,13 @@
+# Foundry dependencies
+lib/
+
+# Compilation output
+out/
+cache/
+
+# Deployment receipts and transactions
+broadcast/
+
+# Foundry snapshots
+.forge-snapshots/
+.gas-snapshot
