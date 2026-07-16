@@ -7,6 +7,7 @@ export const authScopes = [
   'audit:read',
   'audit:publish',
   'audit:anchor',
+  'reputation:read',
 ] as const
 
 export type AuthScope =

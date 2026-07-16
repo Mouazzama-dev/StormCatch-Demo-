@@ -25,6 +25,11 @@ import {
 } from '../../../src/credentials/get-ai-identity.js'
 import { getIdentity } from '../../../src/veramo/identities.js'
 import { requireAccessToken } from '../middleware/authenticate.js'
+import { reputationEngine } from '../reputation/reputation-engine.js'
+import type {
+  ReputationScore,
+} from '../reputation/types.js'
+import { authorizationResultStore } from '../services/authorization-result-store.js'
 
 interface RobotProfileResponse {
   readonly robot: {
@@ -41,6 +46,11 @@ interface RobotProfileResponse {
     readonly issuerDid: string
     readonly subjectDid: string
   }
+}
+
+interface RobotReputationResponse {
+  readonly robotDid: string
+  readonly scores: readonly ReputationScore[]
 }
 
 interface CreatePresentationRequestBody {
@@ -61,6 +71,7 @@ interface ErrorResponse {
     | 'CHALLENGE_ALREADY_CONSUMED'
     | 'CHALLENGE_EXPIRED'
     | 'ROBOT_PROFILE_UNAVAILABLE'
+    | 'REPUTATION_UNAVAILABLE'
     | 'PRESENTATION_CREATION_FAILED'
   readonly message: string
 }
@@ -210,6 +221,51 @@ export const createDemoRouter = (): Router => {
           error: 'ROBOT_PROFILE_UNAVAILABLE',
           message:
             'Unable to load the Robot identity profile',
+        })
+      }
+    },
+  )
+
+  router.get(
+    '/robot/reputation',
+    requireAccessToken('reputation:read'),
+    async (
+      _request,
+      response: Response<
+        RobotReputationResponse | ErrorResponse
+      >,
+    ) => {
+      try {
+        const robot = await getIdentity('robot')
+
+        const events =
+          await authorizationResultStore
+            .getAllByActorDid(robot.did)
+
+        const scores =
+          reputationEngine.calculateAll({
+            robotDid: robot.did,
+            events,
+          })
+
+        response.set('Cache-Control', 'no-store')
+
+        return response.status(200).json({
+          robotDid: robot.did,
+          scores,
+        })
+      } catch (error: unknown) {
+        console.error(
+          'Unable to calculate Robot reputation:',
+          error instanceof Error
+            ? error.message
+            : error,
+        )
+
+        return response.status(500).json({
+          error: 'REPUTATION_UNAVAILABLE',
+          message:
+            'Unable to calculate the Robot reputation',
         })
       }
     },

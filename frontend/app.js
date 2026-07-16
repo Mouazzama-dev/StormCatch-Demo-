@@ -20,6 +20,8 @@ const elements = {
     document.querySelector('#identityPanel'),
   robotDidValue:
     document.querySelector('#robotDidValue'),
+  reputationScoreValue:
+    document.querySelector('#reputationScoreValue',),
   credentialTypeValue:
     document.querySelector('#credentialTypeValue'),
   credentialIssuerValue:
@@ -239,6 +241,7 @@ const resetOutput = () => {
     'decision-panel'
 
   resetValue(elements.robotDidValue)
+  resetValue(elements.reputationScoreValue,)
   resetValue(elements.credentialTypeValue)
   resetValue(elements.credentialIssuerValue)
   resetValue(elements.credentialSubjectValue)
@@ -300,6 +303,25 @@ const showRobotEvidence = (
 
   elements.credentialHashValue.textContent =
     robot.credential.hash
+}
+
+const showRobotReputation = (
+  reputation,
+) => {
+  const score =
+    reputation.scores?.[0]
+
+  if (!score) {
+    elements.reputationScoreValue
+      .textContent =
+      'No score available'
+
+    return
+  }
+
+  elements.reputationScoreValue
+    .textContent =
+    `${score.score}/100`
 }
 
 const showChallenge = (
@@ -491,12 +513,29 @@ const runDemo = async () => {
 
     showRobotEvidence(robot)
 
+    const reputation =
+  await requestJson(
+    '/api/v1/demo/robot/reputation',
+    {
+      headers,
+    },
+  )
+
+technicalResult.reputation =
+  reputation
+
+showRobotReputation(
+  reputation,
+)
+
+const currentReputationScore =
+  reputation.scores?.[0]?.score
+
     addConversationMessage({
       speaker: 'Warehouse Robot',
       title: `I am ${robot.robot.id}`,
       description:
-        `I am a ${robot.robot.model} manufactured by ${robot.robot.manufacturer}. My decentralized identity is ${robot.robot.did}.`,
-      role: 'robot',
+  `I am a ${robot.robot.model} manufactured by ${robot.robot.manufacturer}. My decentralized identity is ${robot.robot.did}. My current reputation score is ${currentReputationScore ?? 'unavailable'} out of 100.`,      role: 'robot',
       state: 'success',
     })
 
@@ -648,6 +687,22 @@ const runDemo = async () => {
       authorization,
       requestedAction,
     )
+
+    const updatedReputation =
+  await requestJson(
+    '/api/v1/demo/robot/reputation',
+    {
+      headers,
+    },
+  )
+
+technicalResult.updatedReputation =
+  updatedReputation
+
+showRobotReputation(
+  updatedReputation,
+)
+
 
     await sleep(conversationDelay)
 

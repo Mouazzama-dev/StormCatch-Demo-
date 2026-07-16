@@ -224,6 +224,28 @@ class AuthorizationResultStore {
     )
   }
 
+  async getAllByActorDid(
+  actorDid: string,
+): Promise<StoredAuthorizationResult[]> {
+  await this.writeSequence
+
+  const normalizedActorDid =
+    actorDid.trim()
+
+  if (normalizedActorDid.length === 0) {
+    return []
+  }
+
+  const records =
+    await this.readAllFromDisk()
+
+  return records.filter(
+    (record) =>
+      record.actorDid ===
+      normalizedActorDid,
+  )
+}
+
   private async readAllFromDisk(): Promise<
     StoredAuthorizationResult[]
   > {
@@ -260,6 +282,8 @@ class AuthorizationResultStore {
         ),
       )
   }
+
+
 }
 
 export const authorizationResultStore =
